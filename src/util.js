@@ -1,50 +1,67 @@
-import crypto from 'crypto';
-import {compose, join, pluck, map, path, forEach} from 'ramda';
-import {singular, plural} from 'pluralize';
+'use strict';
 
-import {SOURCE_NAME, DEBUG_MODE} from './constants';
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.createNodes = exports.assembleQueries = exports.constructTypeQuery = exports.surroundWithBraces = exports.extractTypeName = exports.formatTypeName = undefined;
 
-// Convert a type name to a formatted plural type name.
-export const formatTypeName = t => `all${plural(t)}`;
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-// Get the singular type name back from a formatted type name.
-export const extractTypeName = t => singular(t.replace(/all/, ''));
+var _crypto = require('crypto');
+
+var _crypto2 = _interopRequireDefault(_crypto);
+
+var _ramda = require('ramda');
+
+var _constants = require('./constants');
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
+
+// If type ends in a non-vowel, we need to append es. Else s.
+// TODO: Use an actual pluralize library for this. This doesn't cover all use cases.
+const formatTypeName = exports.formatTypeName = t => `all${t}${t.endsWith(`s`) ? `es` : `s`}`;
+
+// Get the type name back from a formatted type name.
+// TODO: Use the same pluralize to convert from plural to singular?
+const extractTypeName = exports.extractTypeName = t => /all(.+(?:s|es))/gi.exec(t);
 
 // Create the query body
-export const surroundWithBraces = c => `{${c}}`;
+const surroundWithBraces = exports.surroundWithBraces = c => `{${c}}`;
 
 // Constructs a query for a given type.
-export const constructTypeQuery = type => `
+const constructTypeQuery = exports.constructTypeQuery = type => `
   ${formatTypeName(type.name)} {
-    ${compose(join(`\n`), pluck(`name`))(type.fields)}
+    ${(0, _ramda.compose)((0, _ramda.join)(`\n`), (0, _ramda.pluck)(`name`))(type.fields)}
   }
 `;
 
 // Composition which assembles the query to fetch all data.
-export const assembleQueries = compose(
-  surroundWithBraces,
-  join(`\n`),
-  map(constructTypeQuery),
-  path([`__type`, `possibleTypes`])
-);
+const assembleQueries = exports.assembleQueries = (0, _ramda.compose)(surroundWithBraces, (0, _ramda.join)(`\n`), (0, _ramda.map)(constructTypeQuery), (0, _ramda.path)([`__type`, `possibleTypes`]));
 
-export const createNodes = (createNode, reporter) => (value, key) => {
-  forEach(queryResultNode => {
-    const {id, ...fields} = queryResultNode;
+const createNodes = (createNode, reporter) => (value, key) => {
+  (0, _ramda.forEach)(queryResultNode => {
+    const { id } = queryResultNode,
+          fields = _objectWithoutProperties(queryResultNode, ['id']);
+    queryResultNode.id = queryResultNode.id + '';
     const jsonNode = JSON.stringify(queryResultNode);
-    const gatsbyNode = {
-      id,
-      ...fields,
-      parent: `${SOURCE_NAME}_${key}`,
+    // jsonNode.id = jsonNode.id + '';
+    console.log(jsonNode);
+    const gatsbyNode = _extends({
+      id
+    }, fields, {
+      parent: `${_constants.SOURCE_NAME}_${key}`,
       children: [],
       internal: {
-        type: extractTypeName(key),
+        type: 'string',
         content: jsonNode,
-        contentDigest: crypto.createHash(`md5`).update(jsonNode).digest(`hex`)
+        contentDigest: _crypto2.default.createHash(`md5`).update(jsonNode).digest(`hex`)
       }
-    };
+    });
+    gatsbyNode.id = gatsbyNode.id + '';
 
-    if (DEBUG_MODE) {
+    if (_constants.DEBUG_MODE) {
       const jsonFields = JSON.stringify(fields);
       const jsonGatsbyNode = JSON.stringify(gatsbyNode);
       reporter.info(`  processing node: ${jsonNode}`);
@@ -56,3 +73,4 @@ export const createNodes = (createNode, reporter) => (value, key) => {
     createNode(gatsbyNode);
   }, value);
 };
+exports.createNodes = createNodes;
